@@ -4,97 +4,121 @@
 from __future__ import division
 __author__ = 'zeldin'
 import logging
-import numpy as np
+
+def loss_func(x):
+  """ return the contribution to the loss function of residual x. Placeholder for rebust methods to come """
+  return x**2
 
 def total_score(params, *args):
   """ This is the function to be minimized by graph processing.
 
-  It returns the total residual given params, which is a list of tuples, each
-  containing the parameters to refine for one image. Formated for use with
-  the scipy minimization routines.
-  There are thus 12*N_images parameters, and sum_edges(edge_weight) variables
+  It returns the total residual given params, which is a tuple containing the parameters to refine for one image. Formated for use with the scipy minimization routines. There are thus between 5 and 12,
 
   :param params: a list of the parameters for the minimisation as a tuple, only including vertices that have edges. See ImageNode.get_x0() for details of parameters.
-  :param *args: is the Graph to be minimised, the starting point of params for each new frame, as a list, and a list of the vertex objects that are to be used.
+  :param *args:  a 2-tuple of the vertex to be minimised, cross_val. cross_val is a list of edge to leave out of the optimisation for cross-validation purposes.
+
   :return: the total squared residual of the graph minimisation
   """
-  assert len(args) == 3, "Must have 2 args: Graph object, and length of each" \
-                         "set of parameters."
 
-  graph = args[0]
-  param_knots = args[1]
-  x0 = args[2]
-
-  # Scale the normalised params up by their starting values.
-  params = params * x0
-
-  # 0. break params up into a list of correct length
-  param_list = []
-  current_pos = 0
-  for x0_length in param_knots:
-    param_list.append(params[current_pos:current_pos + x0_length])
-    current_pos += x0_length
-  params = param_list
+  vertex = args[0]
+  cross_val = args[1]
 
   # 1. Update scales and partialities for each node that has edges
   # using params.
-  for v_id, vertex in enumerate([vertex for vertex in graph.members
-                                 if vertex.edges]):
-    vertex.partialties = vertex.calc_partiality(params[v_id])
-    vertex.scales = vertex.calc_scales(params[v_id])
-    vertex.G = params[v_id][0]
-    vertex.B = params[v_id][1]
+  vertex.partialties = vertex.calc_partiality(params)
+  vertex.scales = vertex.calc_scales(params)
+  vertex.G = params[0]
+  vertex.B = params[1]
 
   # 2. Calculate all new residuals
   residuals_by_edge = []
-  for edge in graph.edges:
-    residuals_by_edge.append(edge.residuals())
+  for edge in vertex.edges:
+    if edge not in cross_val:
+      residuals_by_edge.append(edge.residuals())
 
   # 3. Return the sum squared of all residuals
   total_sum = 0
   for edge in residuals_by_edge:
     for residual in edge:
-      total_sum += residual**2
+      # ToDo: switch to M-estimator/Maybe Huber loss?
+      total_sum += loss_func(residual)
 
   logging.debug("Total Score: {}".format(total_sum))
   return total_sum
 
-def global_minimise(graph, nsteps=15000):
+
+def _calc_residuals(work_edges, test_edges):
+  """ Internal function to quickly calculate the sum of residuals for two lists of edges: work edges, and test edges. """
+
+  work_residual = 0
+  test_residual = 0
+  # Calculate total graph residual
+  for e in work_edges:
+      for r in e.residuals():
+        work_residual += loss_func(r)
+
+  for e in test_edges:
+      for r in e.residuals():
+        test_residual += loss_func(r)
+
+  return work_residual, test_residual
+
+def global_minimise(graph, nsteps=10, eta=10, cross_val=[None]):
   """
-  Perform a global minimisation on the total squared residuals on all the
-  edges, as calculated by Edge.residuals(). Uses the L-BFGS algorithm.
+  Perform a global minimisation on the total squared residuals on all the edges, as calculated by Edge.residuals(). Uses the L-BFGS algorithm.
+
+  Done by repetedly locally optimizing each node, and repeating this until convergence.
 
   :param graph: the graph object to minimize.
-  :param nsteps: max number of iterations for L-BFGS to use.
+  :param nsteps: max number of iterations.
+  :param cross_val: a list of edge to leave out of the optimisation for cross-validation purposes.
+
+  :return: (end_residual, starting_residual) for the overall graph
   """
   from scipy.optimize import fmin_l_bfgs_b as lbfgs
 
-  # 1. Make a big array of all x0 values
-  x0 = []
-  param_knots = []
-  for vertex in graph.members:
-    if vertex.edges:
-      x0.extend(vertex.get_x0())
-      param_knots.append(len(vertex.get_x0()))
+  # make test/work set
+  work_edges = []
+  test_edges = []
+  for e in graph.edges:
+    if e in cross_val:
+      test_edges.append(e)
+    else:
+      work_edges.append(e)
 
-  # Test for the above:
-  current_pos = 0
-  vertices_with_edges = [vert for vert in graph.members if vert.edges]
-  for im_num, x0_length in enumerate(param_knots):
-    these_params = x0[current_pos:current_pos+ x0_length]
-    assert all(these_params == vertices_with_edges[im_num].get_x0())
-    current_pos += x0_length
+  init_work_residual, init_test_residual = _calc_residuals(work_edges,
+                                                           test_edges)
+  logging.info("Starting work/test residual is {}/{}".format(init_work_residual,
+                                                            init_test_residual))
 
-  # 2. Do the magic
-  final_params, min_total_res, info_dict = lbfgs(total_score,
-                                                 x0,
-                                                 approx_grad=True,
-                                                 epsilon=0.001,
-                                                 args=(graph, param_knots,
-                                                       np.ones(len(x0))),
-                                                 factr=10**12,
-                                                 iprint=0,
-                                                 disp=10,
-                                                 maxiter=nsteps)
+  old_residual = float("inf")
+  new_residual = init_work_residual
+  n_int = 0
+  work_residuals = [init_work_residual]
+  test_residuals = [init_test_residual]
+  while abs(old_residual - new_residual) > eta and n_int < nsteps:
+    for v in graph.members:
+      final_params, min_total_res, info_dict = lbfgs(total_score,
+                                                    list(v.get_x0()),
+                                                     approx_grad=True,
+                                                     epsilon=0.001,
+                                                     args=[v, cross_val],
+                                                     factr=10**12,
+                                                     iprint=0,
+                                                     disp=10)
 
-  return final_params, min_total_res, info_dict
+    work_residual, test_residual = _calc_residuals(work_edges,
+                                                   test_edges)
+    work_residuals.append(work_residual)
+    test_residuals.append(test_residual)
+    logging.info("Iteration {}: work/test residual is {}/{}".format(n_int,
+                                                                  work_residual,
+                                                                  test_residual))
+    if n_int == nsteps:
+      logging.warning("Reached max iterations")
+
+    old_residual = new_residual
+    new_residual = work_residual
+    n_int += 1
+
+  return work_residuals, test_residuals
