@@ -163,4 +163,5 @@ def global_minimise(graph, nsteps=10, eta=10, cross_val=[None], nproc=None):
     new_residual = work_residual
 
   p.terminate()
+
   return work_residuals, test_residuals, param_history

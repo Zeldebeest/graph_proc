@@ -290,7 +290,6 @@ class Graph(Cluster):
     return cc_half, p_value, pretty_string
 
 
-
   def k_means_edges(self):
     """
     Preforms k-means clustering on the edge residuals, updating the Edge.intra attribute depending on if it is in the 1st (edge.intra = True) or 2nd (edge.intra=False) cluster.

@@ -210,8 +210,6 @@ class Edge:
 
     va_selection = mtch_indcs.pair_selection(0)
     vb_selection = mtch_indcs.pair_selection(1)
-    assert len(va_selection) == len(vb_selection)
-    assert len(va_selection) == self.weight
 
     sp_a = partialities_a.select(va_selection) * scales_a.select(va_selection)
     sp_b = partialities_b.select(vb_selection) * scales_b.select(vb_selection)
