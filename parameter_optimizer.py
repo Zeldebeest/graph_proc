@@ -4,11 +4,13 @@
 from __future__ import division
 __author__ = 'zeldin'
 import logging
+import numpy as np
 from scipy.optimize import fmin_l_bfgs_b as lbfgs
 
 def loss_func(x):
   """ return the contribution to the loss function of residual x. Placeholder for rebust methods to come """
   return x**2
+
 
 def total_score(params, *args):
   """ This is the function to be minimized by graph processing.
@@ -20,33 +22,27 @@ def total_score(params, *args):
 
   :return: the total squared residual of the graph minimisation
   """
-
+  from xfel.graph_proc.components import Edge
   vertex = args[0]
   cross_val = args[1]
 
 
-  old_partiality = vertex.partialities.deep_copy()
-  old_scales = vertex.scales.deep_copy()
-  vertex.partialties = vertex.calc_partiality(params)
-  vertex.scales = vertex.calc_scales(params)
+  assert vertex.partialities != vertex.calc_partiality(params), "params have not changed the partialities"
+  pa = vertex.calc_partiality(params, update_wilson=False)
+  sa = vertex.calc_scales(params)
 
   # 2. Calculate all new residuals
-  residuals_by_edge = []
+  total_sum = 0
   for edge in vertex.edges:
     if edge not in cross_val:
-      residuals_by_edge.append(edge.residuals())
+      other_v = edge.other_vertex(vertex)
+      residuals = Edge._calc_residuals(vertex, other_v,
+                  pa, other_v.partialities,
+                  sa, other_v.scales)
+      total_sum += np.sum([loss_func(res) for res in residuals])
 
-  # 3. Return the sum squared of all residuals
-  total_sum = 0
-  for edge in residuals_by_edge:
-    for residual in edge:
-      total_sum += loss_func(residual)
 
   logging.debug("Total Score: {}".format(total_sum))
-
-  vertex.partialities = old_partiality
-  vertex.scales = old_scales
-
   return total_sum
 
 
@@ -71,10 +67,11 @@ def multiproc_wrapper(stuff):
   """ Trivial wrapper for python multiprocessing """
   args, kwargs = stuff
   #print str(args)  + "\n" +  str(kwargs) + "\n----\n"
-  params, _, result = lbfgs(*args, **kwargs)
-  if result['warnflag'] != 0:
-    logging.warning('lbfgs failed')
-  return kwargs['args'][0], params
+  return lbfgs(*args, **kwargs)
+  #params, _, result = lbfgs(*args, **kwargs)
+  #if result['warnflag'] != 0:
+  #  logging.warning('lbfgs failed')
+  #return kwargs['args'][0], params
 
 
 def global_minimise(graph, nsteps=10, eta=10, cross_val=[None], nproc=None):
@@ -89,9 +86,6 @@ def global_minimise(graph, nsteps=10, eta=10, cross_val=[None], nproc=None):
 
   :return: (end_residual, starting_residual) for the overall graph
   """
-  if nproc != 1:
-    from multiprocessing import Pool
-    p = Pool(nproc)
 
   # make test/work set
   work_edges = []
@@ -114,19 +108,18 @@ def global_minimise(graph, nsteps=10, eta=10, cross_val=[None], nproc=None):
   test_residuals = [init_test_residual]
   param_history = [[v.params for v in graph.members]]
   while abs(old_residual - new_residual) > eta and n_int < nsteps:
-    all_args = []
-    if nproc != 1:
-      for v in graph.members:
-        all_args.append(((total_score, list(v.params)),  # args
-                         {'approx_grad':True, 'args':[v, cross_val], 'm': 10,
-                         'factr':1e7, 'epsilon':1e-8, 'iprint':0}))  # kwargs
-      new_params = p.map(multiproc_wrapper, all_args)
-    else:
-      new_params = []
-      for v in graph.members:
-        new_params.append(multiproc_wrapper((total_score, list(v.params)),  # args
-                         {'approx_grad':True, 'args':[v, cross_val], 'm': 10,
-                         'factr':1e7, 'epsilon':1e-8, 'iprint':0}))  # kwargs
+    new_params = []
+    for v in graph.members:
+
+      all_args = ((total_score, list(v.params)),  # args
+                  {'approx_grad':True, 'args':[v, cross_val]})
+                   #'epsilon': 0.001, 'factr': 10**12, 'iprint': 0, 'disp': 10})
+      final_params, min_total_res, info_dict = multiproc_wrapper(all_args)
+
+      new_params.append((v, final_params))
+
+
+
 
     # Update scales and partialities for each node that has edges.
     for v, final_params in new_params:
@@ -144,10 +137,8 @@ def global_minimise(graph, nsteps=10, eta=10, cross_val=[None], nproc=None):
       else:
         schange = True
       logging.info("partialityi/scales changed: {}/{}".format(pchange,schange))
+
     param_history.append([v.params for v in graph.members])
-
-
-
     work_residual, test_residual = _calc_residuals(work_edges,
                                                    test_edges)
     work_residuals.append(work_residual)
@@ -161,7 +152,5 @@ def global_minimise(graph, nsteps=10, eta=10, cross_val=[None], nproc=None):
 
     old_residual = new_residual
     new_residual = work_residual
-
-  p.terminate()
 
   return work_residuals, test_residuals, param_history

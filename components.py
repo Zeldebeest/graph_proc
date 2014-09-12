@@ -188,6 +188,26 @@ class Edge:
     elif vertex is self.vertex_b:
       return self.vertex_a
 
+  @staticmethod
+  def _calc_residuals(va, vb, pa, pb, sa, sb):
+
+    mtch_indcs = va.miller_array.match_indices(vb.miller_array,
+                                               assert_is_similar_symmetry=False)
+
+    va_selection = mtch_indcs.pair_selection(0)
+    vb_selection = mtch_indcs.pair_selection(1)
+
+    sp_a = pa.select(va_selection) * sa.select(va_selection)
+    sp_b = pb.select(vb_selection) * sb.select(vb_selection)
+
+    ia_over_ib = va.miller_array.data().select(va_selection) / \
+                 vb.miller_array.data().select(vb_selection)
+
+    residuals = (flex.log(sp_a) - flex.log(sp_b) - flex.log(ia_over_ib))
+    residuals = residuals.as_numpy_array()
+    #logging.debug("Mean Residual: {}".format(np.mean(residuals)))
+    return residuals[~np.isnan(residuals)]
+
   def residuals(self):
     """
     Calculates the edge residual, as defined as the sum over all common miller indices of:
@@ -204,21 +224,8 @@ class Edge:
     scales_a = self.vertex_a.scales
     scales_b = self.vertex_b.scales
 
-    mtch_indcs = self.vertex_a.miller_array. \
-      match_indices(self.vertex_b.miller_array,
-                    assert_is_similar_symmetry=False)
-
-    va_selection = mtch_indcs.pair_selection(0)
-    vb_selection = mtch_indcs.pair_selection(1)
-
-    sp_a = partialities_a.select(va_selection) * scales_a.select(va_selection)
-    sp_b = partialities_b.select(vb_selection) * scales_b.select(vb_selection)
-
-    ia_over_ib = self.vertex_a.miller_array.data().select(va_selection) / \
-                 self.vertex_b.miller_array.data().select(vb_selection)
-    residuals = (flex.log(sp_a) - flex.log(sp_b) - flex.log(ia_over_ib))
-    residuals = residuals.as_numpy_array()
-    #logging.debug("Mean Residual: {}".format(np.mean(residuals)))
-    return residuals[~np.isnan(residuals)]
+    return Edge._calc_residuals(self.vertex_a, self.vertex_b,
+                           partialities_a, partialities_b,
+                           scales_a, scales_b)
 
 
