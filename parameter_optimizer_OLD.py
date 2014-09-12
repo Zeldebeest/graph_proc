@@ -89,9 +89,8 @@ def global_minimise(graph, nsteps=10, eta=10, cross_val=[None], nproc=None):
 
   :return: (end_residual, starting_residual) for the overall graph
   """
-  if nproc != 1:
-    from multiprocessing import Pool
-    p = Pool(nproc)
+  from multiprocessing import Pool
+  p = Pool(nproc)
 
   # make test/work set
   work_edges = []
@@ -112,40 +111,28 @@ def global_minimise(graph, nsteps=10, eta=10, cross_val=[None], nproc=None):
   n_int = 0
   work_residuals = [init_work_residual]
   test_residuals = [init_test_residual]
-  param_history = [[v.params for v in graph.members]]
   while abs(old_residual - new_residual) > eta and n_int < nsteps:
+    #p = Pool(nproc)
     all_args = []
-    if nproc != 1:
-      for v in graph.members:
-        all_args.append(((total_score, list(v.params)),  # args
-                         {'approx_grad':True, 'args':[v, cross_val], 'm': 10,
-                         'factr':1e7, 'epsilon':1e-8, 'iprint':0}))  # kwargs
-      new_params = p.map(multiproc_wrapper, all_args)
-    else:
-      new_params = []
-      for v in graph.members:
-        new_params.append(multiproc_wrapper((total_score, list(v.params)),  # args
-                         {'approx_grad':True, 'args':[v, cross_val], 'm': 10,
-                         'factr':1e7, 'epsilon':1e-8, 'iprint':0}))  # kwargs
+    for v in graph.members:
+      all_args.append(((total_score, list(v.params)),  # args
+                       {'approx_grad':True, 'args':[v, cross_val], 'm': 10,
+                       'factr':1e7, 'epsilon':1e-8, 'iprint':0}))  # kwargs
+
+
+    new_params = p.map(multiproc_wrapper, all_args)
 
     # Update scales and partialities for each node that has edges.
     for v, final_params in new_params:
+      if any(final_params != v.get_x0()):
+        logging.debug("image parameters chaged: {}".format(final_params))
       v.params = final_params
       v.partialties = v.calc_partiality(final_params)
       v.scales = v.calc_scales(final_params)
       v.G = final_params[0]
       v.B = final_params[1]
       if any(v.partialities == v.calc_partiality(v.get_x0())):
-        pchange = False
-      else:
-        pchange = True
-      if any(v.scales == v.calc_scales(v.get_x0())):
-        schange = False
-      else:
-        schange = True
-      logging.info("partialityi/scales changed: {}/{}".format(pchange,schange))
-    param_history.append([v.params for v in graph.members])
-
+        print "OH No!"  # <--some of the parameters are getting changed from x0
 
 
     work_residual, test_residual = _calc_residuals(work_edges,
@@ -163,4 +150,4 @@ def global_minimise(graph, nsteps=10, eta=10, cross_val=[None], nproc=None):
     new_residual = work_residual
 
   p.terminate()
-  return work_residuals, test_residuals, param_history
+  return work_residuals, test_residuals

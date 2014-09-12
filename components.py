@@ -159,8 +159,7 @@ class Edge:
   .. note::
     Developmental code. Do not use without contacting zeldin@stanford.edu
 
-  Defines an undirected edge in a graph. Contains the connecting vertices, and a
-  weight.
+  Defines an undirected edge in a graph. Contains the connecting vertices, and a weight.
   """
 
   def __init__(self, vertex_a, vertex_b, weight):
@@ -191,8 +190,7 @@ class Edge:
 
   def residuals(self):
     """
-    Calculates the edge residual, as defined as the sum over all common miller
-    indices of:
+    Calculates the edge residual, as defined as the sum over all common miller indices of:
       log(scale * partiality of a) - log(scale * partiality of b) - log(I_a/I_b)
 
     :return: the residual score for this edge
@@ -212,6 +210,8 @@ class Edge:
 
     va_selection = mtch_indcs.pair_selection(0)
     vb_selection = mtch_indcs.pair_selection(1)
+    assert len(va_selection) == len(vb_selection)
+    assert len(va_selection) == self.weight
 
     sp_a = partialities_a.select(va_selection) * scales_a.select(va_selection)
     sp_b = partialities_b.select(vb_selection) * scales_b.select(vb_selection)
