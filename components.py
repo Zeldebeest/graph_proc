@@ -29,6 +29,7 @@ class ImageNode(SingleFrame):
       self.scales = self.calc_scales(self.get_x0())
       self.label = None  # to be used for classification after instantiation
       self.source = None  # for testing, when we know the 'source' of the image
+      self.params = self.get_x0()
 
 
   def calc_partiality(self, params_in, update_wilson=True):
@@ -110,7 +111,7 @@ class ImageNode(SingleFrame):
 
       scales = scale * self.miller_array.data()
       exp_arg = flex.double(-2 * B * sin_sq_theta)
-      return flex.double(scales * flex.exp(exp_arg))
+      return flex.double(flex.double(scales) * flex.exp(exp_arg))
     else:
       # Horrible way to get vector of ones...
       return flex.double(self.miller_array.data()/self.miller_array.data())
