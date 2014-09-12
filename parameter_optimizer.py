@@ -112,31 +112,31 @@ def global_minimise(graph, nsteps=10, eta=10, cross_val=[None], nproc=None):
     for v in graph.members:
 
       all_args = ((total_score, list(v.params)),  # args
-                  {'approx_grad':True, 'args':[v, cross_val]})
-                   #'epsilon': 0.001, 'factr': 10**12, 'iprint': 0, 'disp': 10})
+                  {'approx_grad':True, 'args':[v, cross_val],
+                   'epsilon': 1e-8, 'factr': 10**12, 'iprint': 0})
       final_params, min_total_res, info_dict = multiproc_wrapper(all_args)
 
       new_params.append((v, final_params))
 
-
-
-
     # Update scales and partialities for each node that has edges.
     for v, final_params in new_params:
       v.params = final_params
-      v.partialties = v.calc_partiality(final_params)
+      v.partialities = v.calc_partiality(final_params)
       v.scales = v.calc_scales(final_params)
       v.G = final_params[0]
       v.B = final_params[1]
-      if any(v.partialities == v.calc_partiality(v.get_x0())):
+      if any(v.partialities.as_numpy_array() \
+             == v.calc_partiality(v.get_x0()).as_numpy_array()):
         pchange = False
       else:
         pchange = True
-      if any(v.scales == v.calc_scales(v.get_x0())):
+      if any(v.scales.as_numpy_array() \
+             == v.calc_scales(v.get_x0()).as_numpy_array()):
         schange = False
       else:
         schange = True
-      logging.info("partialityi/scales changed: {}/{}".format(pchange,schange))
+      if not schange or not pchange:
+        logging.info("partialityi/scales changed: {}/{}".format(pchange,schange))
 
     param_history.append([v.params for v in graph.members])
     work_residual, test_residual = _calc_residuals(work_edges,
@@ -145,8 +145,8 @@ def global_minimise(graph, nsteps=10, eta=10, cross_val=[None], nproc=None):
     test_residuals.append(test_residual)
     n_int += 1
     logging.info("Iteration {}: work/test residual is {}/{}".format(n_int,
-                                                                  work_residual,
-                                                                  test_residual))
+                                                                 work_residual,
+                                                                 test_residual))
     if n_int == nsteps:
       logging.warning("Reached max iterations")
 
