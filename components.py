@@ -32,7 +32,7 @@ class ImageNode(SingleFrame):
       self.params = self.get_x0()
 
 
-  def calc_partiality(self, params_in, update_wilson=True):
+  def calc_partiality(self, params_in, update_wilson=False):
     """ Reuturn a partiality vector for all the reflections in self, using the
     parameters defined in the array params.
 

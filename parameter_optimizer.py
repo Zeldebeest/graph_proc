@@ -37,8 +37,8 @@ def total_score(params, *args):
     if edge not in cross_val:
       other_v = edge.other_vertex(vertex)
       residuals = Edge._calc_residuals(vertex, other_v,
-                  pa, other_v.partialities,
-                  sa, other_v.scales)
+                                       pa, other_v.partialities,
+                                       sa, other_v.scales)
       total_sum += np.sum([loss_func(res) for res in residuals])
 
 
