@@ -113,9 +113,10 @@ def global_minimise(graph, nsteps=10, eta=10, cross_val=[None], nproc=None):
 
       all_args = ((total_score, list(v.params)),  # args
                   {'approx_grad':True, 'args':[v, cross_val],
-                   'epsilon': 1e-8, 'factr': 10**12, 'iprint': 0})
+                   'epsilon': 1e-8, 'factr': 10**12, 'iprint': 0,
+                    'maxfun': 5, 'maxiter':50})
+      #logging.info("Refinining {}".format(v))
       final_params, min_total_res, info_dict = multiproc_wrapper(all_args)
-
       new_params.append((v, final_params))
 
     # Update scales and partialities for each node that has edges.
