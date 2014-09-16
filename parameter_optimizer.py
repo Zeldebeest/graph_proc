@@ -25,9 +25,9 @@ def total_score(params, *args):
   from xfel.graph_proc.components import Edge
   vertex = args[0]
   cross_val = args[1]
-
-
+  assert len(params) == len(vertex.params)
   assert vertex.partialities != vertex.calc_partiality(params), "params have not changed the partialities"
+
   pa = vertex.calc_partiality(params, update_wilson=False)
   sa = vertex.calc_scales(params)
 
@@ -66,12 +66,11 @@ def _calc_residuals(work_edges, test_edges):
 def multiproc_wrapper(stuff):
   """ Trivial wrapper for python multiprocessing """
   args, kwargs = stuff
-  #print str(args)  + "\n" +  str(kwargs) + "\n----\n"
-  return lbfgs(*args, **kwargs)
-  #params, _, result = lbfgs(*args, **kwargs)
-  #if result['warnflag'] != 0:
-  #  logging.warning('lbfgs failed')
-  #return kwargs['args'][0], params
+  params, _, result = lbfgs(*args, **kwargs)
+  if result['warnflag'] != 0:
+    logging.warning('lbfgs -- {}'.format(result['task']))
+  logging.info("Ending params:\n{}".format(params))
+  return params
 
 
 def global_minimise(graph, nsteps=10, eta=10, cross_val=[None], nproc=None):
@@ -95,7 +94,6 @@ def global_minimise(graph, nsteps=10, eta=10, cross_val=[None], nproc=None):
       test_edges.append(e)
     else:
       work_edges.append(e)
-
   init_work_residual, init_test_residual = _calc_residuals(work_edges,
                                                            test_edges)
   logging.info("Starting work/test residual is {}/{}".format(init_work_residual,
@@ -114,9 +112,9 @@ def global_minimise(graph, nsteps=10, eta=10, cross_val=[None], nproc=None):
       all_args = ((total_score, list(v.params)),  # args
                   {'approx_grad':True, 'args':[v, cross_val],
                    'epsilon': 1e-8, 'factr': 10**12, 'iprint': 0,
-                    'maxfun': 5, 'maxiter':50})
+                    'maxfun': 100, 'maxiter':50})
       #logging.info("Refinining {}".format(v))
-      final_params, min_total_res, info_dict = multiproc_wrapper(all_args)
+      final_params = multiproc_wrapper(all_args)
       new_params.append((v, final_params))
 
     # Update scales and partialities for each node that has edges.
