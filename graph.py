@@ -30,6 +30,10 @@ class Graph(Cluster):
     :param min_common_reflections: number of reflections two images must have in
     common for an edge to be created.
     """
+    # cleanup old edges, if graph was made from a previous graph.
+    for v in vertices:
+      v.edges = []
+
     Cluster.__init__(self, vertices, "Graph cluster", "made as a graph")
     self.common_miller_threshold = min_common_reflections
     self.edges = self._make_edges()
@@ -54,6 +58,19 @@ class Graph(Cluster):
 
     assert len(all_edges) == sum([len(v.edges) for v in self.members])/2
     return all_edges
+
+  def connected_only(self, nedges=1):
+    """ return a copy of the graph with only the vertices that have at given number of edges.
+
+    :param nedges: min number of edges going out from vertex.
+    :return: a Graph object with vertices that have nedges or more.
+    """
+    newv = []
+    for v in self.members:
+      if len(v.edges) >= nedges:
+        newv.append(v)
+        v.edges=[]
+    return Graph(newv)
 
 
   @classmethod
@@ -81,7 +98,7 @@ class Graph(Cluster):
           if not nmax:
             add_frame(all_vertices, dirpath, filename, **kwargs)
           else:
-            if len(all_vertices) <= nmax:
+            if len(all_vertices) < nmax:
               add_frame(all_vertices, dirpath, filename)
     return cls(all_vertices)
 
@@ -289,7 +306,6 @@ class Graph(Cluster):
 
     return cc_half, p_value, pretty_string
 
-
   def k_means_edges(self):
     """
     Preforms k-means clustering on the edge residuals, updating the Edge.intra attribute depending on if it is in the 1st (edge.intra = True) or 2nd (edge.intra=False) cluster.
@@ -319,7 +335,6 @@ class Graph(Cluster):
                   '{} inter edges').format(
                                   sum([e.intra == True for e in self.edges]),
                                   sum([e.intra == False for e in self.edges])))
-
 
   def label_vertices(self, max_iter=100):
     """
