@@ -37,6 +37,7 @@ class Graph(Cluster):
     Cluster.__init__(self, vertices, "Graph cluster", "made as a graph")
     self.common_miller_threshold = min_common_reflections
     self.edges = self._make_edges()
+    self.vert_dict = {v: i for i, v in enumerate(self.members)}
 
 
   def _make_edges(self):
@@ -52,9 +53,10 @@ class Graph(Cluster):
                         .format(a, b, vertex1.name, vertex2.name))
           this_edge = Edge(vertex1, vertex2, edge_weight)
           logging.debug("Edge weight: {}".format(edge_weight))
-          all_edges.append(this_edge)
-          vertex1.edges.append(this_edge)
-          vertex2.edges.append(this_edge)
+          if not np.isnan(this_edge.mean_residual()):
+            all_edges.append(this_edge)
+            vertex1.edges.append(this_edge)
+            vertex2.edges.append(this_edge)
 
     assert len(all_edges) == sum([len(v.edges) for v in self.members])/2
     return all_edges
@@ -447,3 +449,15 @@ class Graph(Cluster):
 
       current_labels = new_labels
 
+  def adjacency_matrix(self, invert=True):
+    """ return the graph adjacency matrix.
+    :param invert: if true, return reciprocal of the mean edges residual.
+    :return: a symetric numpy array of graph residuals.
+    """
+    dim = len(self.members)
+    amat = np.zeros((dim, dim))
+    for e in self.edges:
+      mres = 1  /e.mean_residual()
+      amat[self.vert_dict[e.vertex_a], self.vert_dict[e.vertex_b]] = mres
+      amat[self.vert_dict[e.vertex_b], self.vert_dict[e.vertex_a]] = mres
+    return amat
