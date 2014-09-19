@@ -69,13 +69,13 @@ def multiproc_wrapper(stuff):
   params, _, result = lbfgs(*args, **kwargs)
   if result['warnflag'] != 0:
     logging.warning('lbfgs -- {}'.format(result['task']))
-  logging.info("Ending params:\n{}".format(params))
+  logging.debug("Ending params:\n{}".format(params))
   return params
 
 
 def global_minimise(graph, nsteps=10, eta=10, cross_val=[None], nproc=None):
   """
-  Perform a global minimisation on the total squared residuals on all the edges, as calculated by Edge.residuals(). Uses the L-BFGS algorithm.
+  Perform a gldebug minimisation on the total squared residuals on all the edges, as calculated by Edge.residuals(). Uses the L-BFGS algorithm.
 
   Done by repetedly locally optimizing each node, and repeating this until convergence.
 
@@ -111,8 +111,8 @@ def global_minimise(graph, nsteps=10, eta=10, cross_val=[None], nproc=None):
 
       all_args = ((total_score, list(v.params)),  # args
                   {'approx_grad':True, 'args':[v, cross_val],
-                   'epsilon': 1e-8, 'factr': 10**12, 'iprint': 0,
-                    'maxfun': 100, 'maxiter':50})
+                   'epsilon': 1e-8, 'factr': 10**12, 'iprint': 10})#,
+                    #'maxfun': 100, 'maxiter':50})
       #logging.info("Refinining {}".format(v))
       final_params = multiproc_wrapper(all_args)
       new_params.append((v, final_params))
