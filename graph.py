@@ -39,7 +39,6 @@ class Graph(Cluster):
     self.edges = self._make_edges()
     self.vert_dict = {v: i for i, v in enumerate(self.members)}
 
-
   def _make_edges(self):
     all_edges = []
     for a, vertex1 in enumerate(self.members):
@@ -73,7 +72,6 @@ class Graph(Cluster):
         newv.append(v)
         v.edges=[]
     return Graph(newv)
-
 
   @classmethod
   def from_directories(cls, folder, **kwargs):
@@ -461,3 +459,4 @@ class Graph(Cluster):
       amat[self.vert_dict[e.vertex_a], self.vert_dict[e.vertex_b]] = mres
       amat[self.vert_dict[e.vertex_b], self.vert_dict[e.vertex_a]] = mres
     return amat
+
