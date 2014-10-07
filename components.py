@@ -116,7 +116,6 @@ class ImageNode(SingleFrame):
       # Horrible way to get vector of ones...
       return flex.double(self.miller_array.data()/self.miller_array.data())
 
-
   def get_x0(self):
     """
     Return the initial estimages of parameters to be refined for this frame
@@ -146,7 +145,7 @@ class ImageNode(SingleFrame):
     a_star = sqr(self.orientation.reciprocal_matrix())
     miller_indices = self.miller_array.indices()
     spot_radius = calc_spot_radius(a_star, miller_indices, self.wavelength)
-    x_init = [self.G, - 1 * self.minus_2B / 2, 0, 0,
+    x_init = [self.G, - 1 * self.minus_2B / 2, 1e-8, 1e-8,
               spot_radius, spot_radius, 0.0026]
     x_init.extend(self.uc)
     x0_all = np.array(x_init)
